@@ -1,0 +1,198 @@
+# configures, compiles, and installs multiple gnu
+# software packages and logs the result.
+
+use config;
+use Getopt::Long;
+use XML::LibXML;
+
+{
+	my ($pkgs, $cfg);
+
+	# [1] get command line options:
+
+	GetOptions
+	(
+		'packages=s' => \$pkgs,
+		'config=s'   => \$cfg,
+		'help'       => sub
+		{
+			print
+			(
+				"Usage:                                              \n" .
+				"	installPackages [options] --packages=<file>  \n\n" .
+
+				"Synopsis:                                           \n" .
+				"		installPackages uses install to      \n" .
+				"	configure, compile, and install the Gnu      \n" .
+				"	software packages listed in the packages     \n" .
+				"	file.                                        \n\n" .
+
+				"Detail:                                             \n" .
+				"		installPackages will parse the       \n" .
+				"	packages file and execute install for each   \n" .
+				"	of the packages listed in the file. The      \n" .
+				"	packages file uses xml, and the              \n" .
+				"	configuration, compilation, and installation \n" .
+				"	parameters are defined in this file.         \n" .
+				"	Whenever, the given file does not define     \n" .
+				"	a necessary parameter, installPackages will  \n" .
+				"	use the values given in the configuration    \n" .
+				"	file. By default, this file is install.xml.  \n\n" .
+
+				"Options:                                            \n" .
+				"	\'--packages\'                               \n" .
+				"		The packages file path. This program \n" .
+				"	will install the packages that are listed in \n" .
+				"	this file. Defaults to \'packages.xml\'      \n\n" .
+
+				"	\'--config\'                                 \n" .
+				"		The configuration file. This program \n" .
+				"	will use this file to define default         \n" .
+				"	parameter values. Defaults to \'config.xml\'.\n\n" .
+
+				"Examples:                                           \n" .
+				"	installPackages --packages=packages.xml      \n"
+			);
+
+			exit (0);
+		}
+	);
+
+	$pkgs ||= "packages.xml";
+
+	$cfg ||= "install.xml";
+
+	# [2] get configuration file parameters:
+
+	my $configParams = config::getParams ($cfg);
+
+	# [3] get packages file parameters:
+
+	my $parser = new XML::LibXML;
+
+	my $doc = $parser -> parse_file ($pkgs);
+
+	my $root = $doc -> getDocumentElement ();
+
+	($root -> getName () eq "packages") || die ("Error: invalid packages file (invalid root element name).");
+
+	my $rootParams = setParams (getElemParams ($root), $configParams);
+
+	# [4] install groups:
+
+	foreach my $group ($root -> getChildrenByTagName ('group'))
+	{
+		my $groupParams = setParams (getElemParams ($group), $rootParams);
+
+		my $status = 0;
+
+		# [4.a] install packages:
+
+		foreach my $package ($group -> getChildrenByTagName ('package'))
+		{
+			my $packageParams = setParams (getElemParams ($package), $groupParams);
+
+			# [4.a.1] install package:
+
+			my $comm = "perl install";
+
+			if ($packageParams -> {'path'}) { $comm .= " --package=" . $packageParams -> {'path'}; }
+
+			if ($packageParams -> {'name'}) { $comm .= " --packagename=" . $packageParams -> {'name'}; }
+
+			if ($packageParams -> {'srcs'}) { $comm .= " --srcs=" . $packageParams -> {'srcs'}; }
+
+			if ($packageParams -> {'objs'}) { $comm .= " --objs=" . $packageParams -> {'objs'}; }
+
+			if ($packageParams -> {'opts'}) { $comm .= " --configoptions=" . $packageParams -> {'opts'}; }
+
+			if ($packageParams -> {'prefix'}) { $comm .= " --prefix=" . $packageParams -> {'prefix'}; }
+
+			if ($packageParams -> {'log'}) { $comm .= " --log=" . $packageParams -> {'log'}; }
+
+			print ("command: $comm\n");
+
+			if (system ($comm))
+			{
+				$status = 1;
+
+				print (STDERR "package installation failed.");
+			}
+		}
+
+		if ($status) { last; }
+	}
+}
+
+# get element parameters:
+sub getElemParams ($)
+{
+	my $params;
+
+	foreach my $attrib ($_[0] -> getAttributes ())
+	{
+		my $name = $attrib -> getName ();
+
+		if ($name eq 'log')
+		{
+			$params -> {'log'} = $attrib -> getValue ();
+		}
+		elsif ($name eq 'srcs')
+		{
+			$params -> {'srcs'} = $attrib -> getValue ();
+		}
+		elsif ($name eq 'objs')
+		{
+			$params -> {'objs'} = $attrib -> getValue ();
+		}
+		elsif ($name eq 'opts')
+		{
+			$params -> {'opts'} = $attrib -> getValue ();
+		}
+		elsif ($name eq 'name')
+		{
+			$params -> {'name'} = $attrib -> getValue ();
+		}
+		elsif ($name eq 'path')
+		{
+			$params -> {'path'} = $attrib -> getValue ();
+		}
+		elsif ($name eq 'prefix')
+		{
+			$params -> {'prefix'} = $attrib -> getValue ();
+		}
+		elsif ($name eq 'config')
+		{
+			$params -> {'config'} = $attrib -> getValue ();
+		}
+	}
+
+	return $params;
+}
+
+# set parameter defaults:
+sub setParams ($$)
+{
+	my ($params, $defaults) = @_;
+
+	$params -> {'log'} ||= $defaults -> {'log'};
+
+	$params -> {'srcs'} ||= $defaults -> {'srcs'};
+
+	$params -> {'objs'} ||= $defaults -> {'objs'};
+
+	$params -> {'opts'} ||= $defaults -> {'opts'};
+
+	$params -> {'prefix'} ||= $defaults -> {'prefix'};
+
+	return $params;
+}
+
+# display params:
+sub displayParams ($)
+{
+	foreach my $key (keys %{$_[0]})
+	{
+		print ("\t$key => " . $_[0] -> {$key} . "\n");
+	}
+}

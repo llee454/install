@@ -1,0 +1,7 @@
+<!-- specifies the packages compilePackages will try to install. -->
+<packages>
+	<group>
+		<package path='../../../../srcs/gnugo/gnugo-3.6.tar.bz2' />
+		<package path='../../../../srcs/gnuchess/gnuchess-5.07.tar.bz2' />
+	</group>
+</packages>

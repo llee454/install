@@ -1,5 +1,11 @@
+#!/usr/bin/perl
 # configures, compiles, and installs gnu packages.
 # Author: Larry Lee (3 - 23 - 09 GPL)
+
+# The following three lines include the current working directoy in the INC path.
+use Cwd qw( abs_path );
+use File::Basename qw( dirname );
+use lib dirname(abs_path($0));
 
 use Getopt::Long;
 use Cwd 'abs_path';
